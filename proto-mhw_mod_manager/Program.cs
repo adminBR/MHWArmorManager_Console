@@ -11,13 +11,16 @@ namespace proto_mhw_mod_manager // Note: actual namespace depends on the project
 {
     internal class Program
     {
-        static string DOWNLOAD_PATH = "C:\\Users\\Luis\\Desktop\\mhr modding\\downloads\\..og";
-        static string INSTALL_PATH = "C:\\Users\\Luis\\Desktop\\mhr modding\\mods";
-        static string NATIVEPC_PATH = "C:\\Users\\Luis\\Desktop\\mhr modding\\gamefolder";
-        static string MASTER_LIST_PATH = "C:\\Users\\Luis\\Desktop\\mhr modding\\mods\\masterlist.txt";
-        static string SYMLINK_LIST_PATH = "C:\\Users\\Luis\\Desktop\\mhr modding\\mods\\symlinklist.txt";
+        static string NATIVEPC_PATH = "null";
 
-        static string BACKUP_MASTER_LIST_PATH = "C:\\Users\\Luis\\Desktop\\mhr modding\\mods\\backup_masterlist.txt";
+        //static string CONFIG_PATH = "C:\\Users\\Luis\\Desktop\\mhr modding";
+        static string CONFIG_PATH = "";
+        static string INSTALL_PATH = CONFIG_PATH+"\\Installed_Mods\\";
+        static string MASTER_LIST_PATH = CONFIG_PATH+ "\\Installed_Mods\\masterlist.txt";
+        static string SYMLINK_LIST_PATH = CONFIG_PATH+ "\\Installed_Mods\\symlinklist.txt";
+        static string BACKUP_MASTER_LIST_PATH = CONFIG_PATH + "\\Installed_Mods\\backup_masterlist.txt";
+
+        static string SETTINGS_FILE_PATH ="C:\\mhw_mod_manager_settings\\settings.txt";
 
 
         static public List<string> MasterListInMemory = new List<string>();
@@ -26,25 +29,113 @@ namespace proto_mhw_mod_manager // Note: actual namespace depends on the project
         [STAThread]
         static void Main(string[] args)
         {
+            integrityCheck();
             while (true)
             {
                 readMasterList();
                 menu();
             }
         }
+        static void integrityCheck()
+        {
+            bool isCheckOk = true;
+            if (!File.Exists(SETTINGS_FILE_PATH)) //check if the settings file with the installed path exists, if not, it creates one on c:
+            {
+                Console.WriteLine("First time opening, creating settings file on: C:\\mhw_mod_manager_settings...");
+                Directory.CreateDirectory("C:\\mhw_mod_manager_settings");
+                FileStream fs = File.Create(SETTINGS_FILE_PATH);
+                fs.Close();
+                File.WriteAllText(SETTINGS_FILE_PATH, "null");
+                isCheckOk = false;
+            }
+
+            if (File.ReadAllLines(SETTINGS_FILE_PATH).Length<2)//check of the settings file has a valid path, if not it asks you a new one
+            {
+                Console.WriteLine("Choose a path for the installed mods... (a folder will be created inside the folder you selected)");
+                CONFIG_PATH = pathselection();
+                Directory.CreateDirectory(CONFIG_PATH + "\\Installed_Mods");
+
+                Console.WriteLine("Select the game folder of your game... (NOT nativePC, its the core game folder)");
+                NATIVEPC_PATH = pathselection().Replace("\\nativePC", "");
+                File.WriteAllLines(SETTINGS_FILE_PATH, new string[2] { CONFIG_PATH, NATIVEPC_PATH});
+                isCheckOk = false;
+
+                Console.WriteLine("Created directory: " + CONFIG_PATH + "\\Installed_Mods");
+            }
+
+            CONFIG_PATH = File.ReadAllLines(SETTINGS_FILE_PATH)[0];
+            NATIVEPC_PATH = File.ReadAllLines(SETTINGS_FILE_PATH)[1];
+
+            INSTALL_PATH = CONFIG_PATH + "\\Installed_Mods\\";
+            MASTER_LIST_PATH = CONFIG_PATH + "\\Installed_Mods\\masterlist.txt";
+            SYMLINK_LIST_PATH = CONFIG_PATH + "\\Installed_Mods\\symlinklist.txt";
+            BACKUP_MASTER_LIST_PATH = CONFIG_PATH + "\\Installed_Mods\\backup_masterlist.txt";
+
+            if (!Directory.Exists(INSTALL_PATH))
+            {
+                Directory.CreateDirectory(INSTALL_PATH);
+                isCheckOk = false;
+
+                Console.WriteLine("Created directory: "+CONFIG_PATH);
+            }
+            if (!File.Exists(MASTER_LIST_PATH))
+            {
+                FileStream fs = File.Create(MASTER_LIST_PATH);
+                fs.Close();
+                isCheckOk = false;
+
+                Console.WriteLine("Created file: " + MASTER_LIST_PATH);
+            }
+            if (!File.Exists(BACKUP_MASTER_LIST_PATH))
+            {
+                FileStream fs = File.Create(BACKUP_MASTER_LIST_PATH);
+                fs.Close();
+                isCheckOk = false;
+
+                Console.WriteLine("Created file: " + BACKUP_MASTER_LIST_PATH);
+            }
+            if (File.ReadAllLines(SETTINGS_FILE_PATH).Length > 1)
+            {
+                while (true)
+                {
+                    if (!Directory.Exists(NATIVEPC_PATH+"\\nativePC"))
+                    {
+                        Console.WriteLine("nativePC not found inside, try again...\n"+ File.ReadAllLines(SETTINGS_FILE_PATH)[1] + "\\nativePC");
+                        NATIVEPC_PATH = pathselection();
+                    }
+                    else
+                    {
+                        File.WriteAllLines(SETTINGS_FILE_PATH, new string[2] { CONFIG_PATH, NATIVEPC_PATH });
+                        break;
+                    }
+                }
+            }
+
+            if (isCheckOk == false)
+            {
+                Console.WriteLine("Finished integrity check, press enter to continue...");
+                Console.ReadLine();
+            }
+        }
 
         static void menu()
         {
             Console.Clear();
-            Console.WriteLine("Choose and option\n" +
-                "1- reload masterList (check if the masterlist and the instaled mods are synced)\n" +
-                "2- create masterList\n" +
-                "3- install mod\n" +
-                "4- delete mod\n" +
-                "5- reposition mod\n" +
-                "6- deploy mods\n");
-
             printMasterList();
+
+            Console.WriteLine("\n \nGamePath: "+NATIVEPC_PATH+
+                "\nModsPath:"+INSTALL_PATH+
+                "\n \nChoose and option\n" +
+                "1* Reload masterList (check if the masterlist and the instaled mods are synced)\n" +
+                "2* Integrity check\n" +
+                "3* Change Path\n"+
+                "4* install mod\n" +
+                "5* delete mod\n" +
+                "6* reposition mod\n" +
+                "7* deploy mods\n"+
+                "8* rollback deployed mods\n" +
+                "\n Type a number and press enter:");
+
 
             int sel = int.Parse(Console.ReadLine());
 
@@ -55,22 +146,29 @@ namespace proto_mhw_mod_manager // Note: actual namespace depends on the project
                     createMasterList();
                     break;
                 case 2:
-                    createMasterList();
+                    integrityCheck();
                     break;
                 case 3:
+                    File.Delete(SETTINGS_FILE_PATH);
+                    integrityCheck();
+                    break;
+                case 4:
                     installMod();
                     createMasterList();
                     break;
-                case 4:
+                case 5:
                     deleteMod();
                     createMasterList();
                     break;
-                case 5:
+                case 6:
                     repositionMod();
                     createMasterList();
                     break;
-                case 6:
+                case 7:
                     deployMods();
+                    break;
+                case 8:
+                    rollbackMods();
                     break;
             }
         }
@@ -88,7 +186,7 @@ namespace proto_mhw_mod_manager // Note: actual namespace depends on the project
                     bool success = false;
                     for (int j = 0; j < tempdir.Count; j++)
                     {
-                        string name = tempdir[j].Split("\\mods\\")[1];
+                        string name = tempdir[j].Split("\\Installed_Mods\\")[1];
                         if (name == MasterListInMemory[i])
                         {
                             success = true;
@@ -119,7 +217,7 @@ namespace proto_mhw_mod_manager // Note: actual namespace depends on the project
                     for (int j = 0;j < MasterListInMemory.Count; j++)
                     {
 
-                        string name = tempdir[i].Split("\\mods\\")[1];
+                        string name = tempdir[i].Split("\\Installed_Mods\\")[1];
                         if (name == MasterListInMemory[j])
                         {
                             success = true;
@@ -407,12 +505,41 @@ namespace proto_mhw_mod_manager // Note: actual namespace depends on the project
                     }
                     File.CreateSymbolicLink(NATIVEPC_PATH + "\\nativePC" + tempFilePath, GlobalFilesList[j]);
                     symlinkDeployed.Add(NATIVEPC_PATH + "\\nativePC" + tempFilePath);
-                    Console.WriteLine("[NEWFILE] " + NATIVEPC_PATH + "\\nativePC" + tempFilePath);
+                    Console.WriteLine("[SYMLINK] " + NATIVEPC_PATH + "\\nativePC" + tempFilePath);
                 }
 
             }
             File.WriteAllLines(SYMLINK_LIST_PATH, symlinkDeployed);
             Console.WriteLine("Finished Deploy, press enter to continue...");
+            Console.ReadLine();
+        }
+
+        static void rollbackMods()
+        {
+            List<String> symlinkDeployed = new List<string>();
+            if (File.Exists(SYMLINK_LIST_PATH))
+            {
+                symlinkDeployed = File.ReadAllLines(SYMLINK_LIST_PATH).ToList();
+                if (symlinkDeployed.Count > 0)
+                {
+                    for (int i = 0; i < symlinkDeployed.Count(); i++)
+                    {
+                        if (File.Exists(symlinkDeployed[i]))
+                        {
+                            File.Delete(symlinkDeployed[i]);
+                            Console.WriteLine("[ROLLBACK] " + symlinkDeployed[i]);
+                        }
+                    }
+                }
+                File.WriteAllText(SYMLINK_LIST_PATH, "");
+            }
+            else
+            {
+                FileStream fs = File.Create(SYMLINK_LIST_PATH);
+                fs.Close();
+            }
+
+            Console.WriteLine("RollBack finished, press enter to continue...");
             Console.ReadLine();
         }
 
